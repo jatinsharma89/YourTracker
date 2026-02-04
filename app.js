@@ -15,6 +15,8 @@ function init() {
 function showPage(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    // Re-render charts when returning to dashboard to see new progress
+    if (id === 'page-weeks') renderCharts(); 
     window.scrollTo(0,0);
 }
 
@@ -79,14 +81,16 @@ function saveCheckState(key, isChecked) {
 }
 
 function completeDay() {
-    const today = new Date().toISOString().split('T')[0];
+    // FIX: Using local date string to avoid UTC "day-skip" errors
+    const today = new Date().toLocaleDateString('en-CA'); // Format: YYYY-MM-DD
+    
     if(!completedDates.includes(today)) {
         completedDates.push(today);
         localStorage.setItem('jatin_done', JSON.stringify(completedDates));
     }
-    alert("Workout Saved, Jatin!");
+    
+    alert("Workout Saved, Jatin! See you tomorrow.");
     showPage('page-weeks');
-    renderCharts();
 }
 
 function saveWeight() {
@@ -95,7 +99,7 @@ function saveWeight() {
         weightHistory.push(parseFloat(val));
         localStorage.setItem('jatin_weight', JSON.stringify(weightHistory));
         renderCharts();
-        alert("Weight Updated!");
+        alert("Weight History Updated!");
         document.getElementById('weight-input').value = '';
     }
 }
@@ -107,7 +111,7 @@ function resetAllData() {
     }
 }
 
-// CHARTS (FIXED ALIGNMENT)
+// CHARTS (REAL-TIME ALIGNMENT)
 function renderCharts() {
     renderWeightChart();
     renderConsistencyChart();
@@ -120,29 +124,61 @@ function renderWeightChart() {
         type: 'line',
         data: {
             labels: weightHistory.map((_, i) => i === 0 ? 'Start' : `W${i}`),
-            datasets: [{ data: weightHistory, borderColor: '#3b82f6', tension: 0.4, fill: true, backgroundColor: 'rgba(59, 130, 246, 0.05)', pointRadius: 4 }]
+            datasets: [{ 
+                data: weightHistory, 
+                borderColor: '#3b82f6', 
+                tension: 0.4, 
+                fill: true, 
+                backgroundColor: 'rgba(59, 130, 246, 0.05)', 
+                pointRadius: 4 
+            }]
         },
-        options: { plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { grid: { display: false }, ticks: { color: '#4b5563' } } } }
+        options: { 
+            plugins: { legend: { display: false } }, 
+            scales: { 
+                y: { display: false }, 
+                x: { grid: { display: false }, ticks: { color: '#4b5563' } } 
+            } 
+        }
     });
 }
 
 function renderConsistencyChart() {
     const ctx = document.getElementById('consistencyChart').getContext('2d');
     if (window.cChart) window.cChart.destroy();
-    const now = new Date();
-    const last7 = [];
+
+    // Get the last 7 days including today
+    const last7Days = [];
     for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(now.getDate() - i);
-        last7.push(d.toISOString().split('T')[0]);
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        last7Days.push(d.toLocaleDateString('en-CA'));
     }
-    const data = last7.map(d => completedDates.includes(d) ? 1 : 0.05);
+
+    const labels = last7Days.map(dateStr => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { weekday: 'short' })[0];
+    });
+
+    const dataPoints = last7Days.map(dateStr => completedDates.includes(dateStr) ? 1 : 0.05);
+
     window.cChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: last7.map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short' })[0]),
-            datasets: [{ data: data, backgroundColor: data.map(v => v === 1 ? '#3b82f6' : '#1e293b'), borderRadius: 5 }]
+            labels: labels,
+            datasets: [{ 
+                data: dataPoints, 
+                backgroundColor: dataPoints.map(v => v === 1 ? '#3b82f6' : '#1e293b'), 
+                borderRadius: 5 
+            }]
         },
-        options: { plugins: { legend: { display: false } }, scales: { y: { display: false, max: 1 }, x: { grid: { display: false }, ticks: { color: '#4b5563' } } } }
+        options: { 
+            plugins: { legend: { display: false } }, 
+            scales: { 
+                y: { display: false, max: 1 }, 
+                x: { grid: { display: false }, ticks: { color: '#4b5563' } } 
+            } 
+        }
     });
 }
 
